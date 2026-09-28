@@ -197,6 +197,15 @@ const commonChecks = [
   "وضعیت پرداخت، ارسال و دریافت‌های موعددار را روشن کردم.",
   "برای فرصت‌های باز، مالک و موعد معتبر تعیین کردم.",
 ];
+function executionChecks(person) {
+  return commonChecks.concat(
+    person.kind === "manager"
+      ? ["پوشش تیم، تأییدهای باز و رفع مانع‌ها را مرور کردم."]
+      : person.kind === "ceo"
+        ? ["مشاهده‌های مستند و مانع‌های امروز را ثبت کردم."]
+        : [],
+  );
+}
 const glossary = [
   [
     "SOP",
@@ -508,12 +517,7 @@ export default function App() {
     const checkLabels =
       person.kind === "support"
         ? supportData.checks
-        : [
-            "مرور موعدهای باز و پیگیری‌های بحرانی",
-            "تکمیل نتیجه تماس‌ها و اقدام بعدی در CRM",
-            "روشن‌کردن وضعیت پرداخت و ارسال و دریافت",
-            "تعیین مالک و موعد فرصت‌های باز",
-          ];
+        : executionChecks(person);
     checkLabels.forEach((label, i) =>
       fields.push({
         key: `day.checks.${i}`,
@@ -1055,13 +1059,7 @@ function Overview({
   const policy = isMohammad
     ? dayPolicy(day, dayData)
     : { target: person.target };
-  const labels = commonChecks.concat(
-    person.kind === "manager"
-      ? ["پوشش تیم، تأییدهای باز و رفع مانع‌ها را مرور کردم."]
-      : person.kind === "ceo"
-        ? ["مشاهده‌های مستند و مانع‌های امروز را ثبت کردم."]
-        : [],
-  );
+  const labels = executionChecks(person);
   const count = Number(dayData.calls),
     hasCalls =
       dayData.calls !== "" &&
