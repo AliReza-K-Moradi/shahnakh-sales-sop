@@ -1,0 +1,28 @@
+{
+  "name": "shahnakh-sales-sop",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Interactive Persian SOP portal for ShahNakh sales team",
+  "license": "UNLICENSED",
+  "type": "module",
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:standalone": "node scripts/build.mjs && node scripts/standalone.mjs",
+    "dev": "node scripts/preview.mjs --build",
+    "preview": "node scripts/preview.mjs",
+    "format": "prettier --write src scripts index.html tailwind.config.cjs package.json README.md .github/workflows/pages.yml"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "tailwindcss": "3.4.17",
+    "prettier": "3.6.2"
+  }
+}

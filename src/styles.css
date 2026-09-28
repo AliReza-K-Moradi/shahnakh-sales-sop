@@ -1,0 +1,233 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-canvas text-ink font-sans;
+    line-height: 1.9;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+  button,
+  a,
+  input,
+  select,
+  textarea,
+  summary {
+    touch-action: manipulation;
+  }
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  summary:focus-visible {
+    outline: 3px solid #78a356;
+    outline-offset: 3px;
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    line-height: 1.6;
+  }
+  p {
+    overflow-wrap: break-word;
+  }
+  input[type="checkbox"],
+  input[type="range"] {
+    accent-color: #287858;
+  }
+  input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    flex: none;
+  }
+  input[type="number"] {
+    direction: ltr;
+  }
+  summary {
+    cursor: pointer;
+  }
+  details summary::marker {
+    color: #287858;
+  }
+  ::selection {
+    background: #d4ed95;
+  }
+}
+@layer components {
+  .panel {
+    @apply rounded-2xl border border-line bg-white p-5 sm:p-7;
+    box-shadow: 0 8px 32px #173a3205;
+  }
+  .btn {
+    @apply inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-line bg-white px-4 py-2 text-sm font-semibold transition-colors hover:bg-[#edf3e7];
+  }
+  .btn-primary {
+    @apply border-forest bg-forest text-white hover:bg-[#225446];
+  }
+  .field {
+    @apply min-h-[46px] w-full rounded-xl border border-[#c7d4cb] bg-white px-3 py-2 text-base outline-offset-2;
+  }
+  .label {
+    @apply mb-2 block text-sm font-semibold;
+  }
+  .caption {
+    @apply text-sm text-muted;
+  }
+  .badge {
+    @apply inline-flex items-center rounded-full bg-[#eaf1e2] px-3 py-1 text-sm text-[#426346];
+  }
+  .title {
+    @apply text-2xl font-bold sm:text-3xl;
+  }
+  .tab {
+    @apply min-h-[44px] rounded-xl border border-line bg-white px-4 py-2 text-sm text-right transition-colors;
+  }
+  .tab-active {
+    @apply border-forest bg-forest text-white;
+  }
+  .prose-list {
+    @apply space-y-3;
+  }
+  .prose-list li {
+    @apply flex items-start gap-3;
+  }
+  .notice {
+    @apply rounded-xl bg-[#eaf1e4] px-4 py-3 text-sm leading-7;
+  }
+  .icon {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    flex: none;
+  }
+  .section-stack {
+    @apply space-y-5 sm:space-y-6;
+  }
+  .section-title {
+    @apply mb-4 flex items-center justify-between gap-3 text-lg font-bold sm:text-xl;
+  }
+  .dark-card {
+    @apply rounded-2xl bg-forest p-5 text-white sm:p-7;
+  }
+  .dark-card p {
+    @apply text-[#d6e4da];
+  }
+  .step-number {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eaf1e4] text-sm font-bold text-[#287858];
+  }
+  .rule-row {
+    @apply border-b border-line py-4 last:border-0;
+  }
+  .formula {
+    @apply rounded-xl bg-[#f0f5ea] p-4 text-base font-medium leading-8;
+  }
+  .print-only {
+    display: none;
+  }
+  .local-note {
+    @apply text-sm text-muted leading-7;
+  }
+}
+.page-enter {
+  animation: appear 0.2s ease-out;
+}
+@keyframes appear {
+  from {
+    opacity: 0.4;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+@media print {
+  @page {
+    size: A4;
+    margin: 16mm;
+  }
+  body {
+    background: white;
+    color: black;
+    font-size: 11pt;
+  }
+  .app-shell {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .print-only h1 {
+    font-size: 22pt;
+    margin-bottom: 12pt;
+  }
+  .print-only h2 {
+    font-size: 16pt;
+    margin: 20pt 0 8pt;
+    break-after: avoid;
+  }
+  .print-only h3 {
+    font-size: 13pt;
+    margin: 12pt 0 5pt;
+    break-after: avoid;
+  }
+  .print-only p,
+  .print-only li {
+    line-height: 1.8;
+    margin-bottom: 6pt;
+  }
+  .print-only section {
+    break-inside: auto;
+  }
+  .print-only table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .print-only td,
+  .print-only th {
+    border: 1px solid #bbb;
+    padding: 7pt;
+    text-align: right;
+  }
+  .print-only tr {
+    break-inside: avoid;
+  }
+  .print-only ul {
+    list-style: disc;
+    padding-right: 18pt;
+  }
+  .print-meta {
+    font-size: 10pt;
+    color: #444;
+  }
+  .print-only .keep {
+    break-inside: avoid;
+  }
+}
