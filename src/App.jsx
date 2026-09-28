@@ -8,6 +8,9 @@ import SupportSOP, {
 } from "./components/SupportSOP.jsx";
 import WeeklyPlan, { MohammadPolicy } from "./components/WeeklyPlan.jsx";
 import { dayPolicy, workStatus, MOHAMMAD_POLICY } from "./lib/schedule.js";
+import { collectVisibleFields, useSheetSync } from "./lib/sheets.js";
+import SheetSubmission from "./components/SheetSubmission.jsx";
+import supportData from "./data/support.json";
 
 const PEOPLE = [
   {
@@ -424,6 +427,7 @@ export default function App() {
     [storageOK, setStorageOK] = useState(true),
     [message, setMessage] = useState("");
   const [masterOpen, setMasterOpen] = useState(false);
+  const sheetSync = useSheetSync();
   const dialogRef = useRef(null),
     masterRef = useRef(null),
     fileRef = useRef(null),
@@ -446,6 +450,143 @@ export default function App() {
         },
       },
     }));
+  const countValue = (value) =>
+    value === "" || value === undefined || value === null
+      ? null
+      : Number(value);
+  function sendCurrent(patch = {}) {
+    if (isTemplate) return;
+    const entry = { ...dayData, ...patch };
+    const kind =
+      page === "profile" ? "profile" : page === "calculator" ? "kpi" : "daily";
+    const profileLabels = Object.fromEntries(
+      FIELDS.concat(SUPPORT_FIELDS, [
+        ["duration", "مدت تجربه فروش"],
+        ["handover", "روش تحویل مشتریان در پایان دوره"],
+      ]),
+    );
+    const fields = Object.entries(profileLabels).map(([key, label]) => ({
+      key: `profile.${key}`,
+      label: `اطلاعات فردی / ${label}`,
+      value: profile[key] || "",
+    }));
+    const dailyLabels = {
+      calls: "تماس خروجی قابل‌شمارش",
+      leads: "سرنخ جدید",
+      visits: "ملاقات حضوری",
+      workStatus: "نوع روز کاری",
+      followupMode: "روش پیگیری",
+      followupNotes: "نتیجه پیگیری و اقدام بعدی",
+      reportSavedAt: "زمان ذخیره گزارش",
+    };
+    for (const [key, label] of Object.entries(dailyLabels)) {
+      if (key === "leads" && person.kind !== "support") continue;
+      const labels =
+        key === "workStatus"
+          ? {
+              full: "روز کامل کاری",
+              off: "تعطیل یا مرخصی کامل",
+              short: "روز کوتاه مصوب",
+            }
+          : key === "followupMode"
+            ? { phone: "تلفنی", field: "میدانی و حضوری", mixed: "ترکیبی" }
+            : null;
+      const value =
+        key === "workStatus" && person.id === "mohammad"
+          ? workStatus(day, entry)
+          : entry[key];
+      fields.push({
+        key: `day.${key}`,
+        label: `فعالیت روزانه / ${label}`,
+        value: ["calls", "leads", "visits"].includes(key)
+          ? countValue(value)
+          : labels
+            ? labels[value] || ""
+            : value || "",
+      });
+    }
+    const checkLabels =
+      person.kind === "support"
+        ? supportData.checks
+        : [
+            "مرور موعدهای باز و پیگیری‌های بحرانی",
+            "تکمیل نتیجه تماس‌ها و اقدام بعدی در CRM",
+            "روشن‌کردن وضعیت پرداخت و ارسال و دریافت",
+            "تعیین مالک و موعد فرصت‌های باز",
+          ];
+    checkLabels.forEach((label, i) =>
+      fields.push({
+        key: `day.checks.${i}`,
+        label: `چک‌لیست / ${label}`,
+        value: entry.checks?.[i] === true,
+      }),
+    );
+    if (person.kind === "support")
+      supportData.reportFields.forEach(([key, label]) =>
+        fields.push({
+          key: `day.report.${key}`,
+          label: `گزارش روزانه / ${label}`,
+          value: entry.report?.[key] || "",
+        }),
+      );
+    fields.push(
+      ...collectVisibleFields(headingRef.current).map((field) => ({
+        ...field,
+        label: `فرم بخش جاری / ${field.label}`,
+      })),
+    );
+    if (page === "calculator") {
+      const result = headingRef.current.querySelector("[data-sheet-result]");
+      if (result)
+        fields.push({
+          key: "kpi.result",
+          label: "نتیجه محاسبه KPI",
+          value: result.innerText.slice(0, 5000),
+        });
+    }
+    return sheetSync.submit({
+      personId: person.id,
+      personName: person.name,
+      day,
+      kind,
+      page: nav.find((n) => n[0] === page)?.[1] || page,
+      summary: {
+        calls: countValue(entry.calls),
+        leads: countValue(entry.leads),
+        visits: countValue(entry.visits),
+      },
+      fields,
+    });
+  }
+  function sendObservation(row, deleting = false) {
+    const labels = {
+      id: "شناسه مشاهده",
+      date: "تاریخ مشاهده",
+      stage: "مرحله",
+      record: "شناسه پرونده یا شاهد",
+      fact: "مشاهده واقعی",
+      impact: "اثر بر مشتری، زمان یا کیفیت",
+      action: "اقدام موقت",
+      idea: "پیشنهاد اصلاحی",
+      decision: "تصمیم و مرجع بررسی",
+      owner: "مسئول پیگیری",
+      due: "موعد پیگیری",
+      status: "وضعیت",
+    };
+    return sheetSync.submit({
+      personId: "saeed",
+      personName: "سعید تقی‌زاده",
+      day: row.date,
+      kind: deleting ? "observation-delete" : "observation",
+      page: "دفتر مشاهدات",
+      recordId: row.id,
+      fields: Object.entries(labels).map(([key, label]) => ({
+        key: `observation.${key}`,
+        label,
+        value: row[key] || "",
+      })),
+    });
+  }
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE, JSON.stringify(state));
@@ -561,7 +702,7 @@ export default function App() {
             ))}
           </nav>
           <div className="mt-auto pt-6 text-sm text-muted">
-            <p>نسخه فردی ۱٫۱</p>
+            <p>نسخه فردی ۱٫۲</p>
             <p>مرجع گزارش رسمی: CRM</p>
           </div>
         </aside>
@@ -665,6 +806,15 @@ export default function App() {
                 فردی پشتیبان بگیرید.
               </p>
             )}
+            <SheetSubmission
+              sync={sheetSync}
+              person={person}
+              dayLabel={dateLabel(day)}
+              observationPage={page === "observations"}
+              onSubmit={() => {
+                void sendCurrent();
+              }}
+            />
             <div key={person.id + "-" + page} className="page-enter">
               {person.kind === "support" && (
                 <SupportSOP
@@ -678,6 +828,9 @@ export default function App() {
                     setDayData,
                     go,
                   }}
+                  onSendReport={sendCurrent}
+                  cloudReady={sheetSync.ready}
+                  cloudBusy={sheetSync.busy}
                 />
               )}
               {page === "overview" && person.kind !== "support" && (
@@ -714,6 +867,9 @@ export default function App() {
                 <Observations
                   value={state.observations}
                   setValue={(v) => setState((s) => ({ ...s, observations: v }))}
+                  onSend={sendObservation}
+                  cloudReady={sheetSync.ready}
+                  cloudBusy={sheetSync.busy}
                 />
               )}
               {page === "profile" && (
@@ -2229,7 +2385,7 @@ function Calculator({ person }) {
             </section>
           ))}
         </div>
-        <aside className="dark-card xl:sticky xl:top-32">
+        <aside className="dark-card xl:sticky xl:top-32" data-sheet-result>
           <h3 className="text-xl font-bold">امتیاز مثال</h3>
           <div className="my-6 flex items-baseline gap-2">
             <strong
@@ -2345,10 +2501,10 @@ const emptyObservation = () => ({
   due: "",
   status: "باز",
 });
-function Observations({ value, setValue }) {
+function Observations({ value, setValue, onSend, cloudReady, cloudBusy }) {
   const [draft, setDraft] = useState(emptyObservation),
     [msg, setMsg] = useState("");
-  function save(e) {
+  async function save(e) {
     e.preventDefault();
     if (!draft.fact.trim()) {
       setMsg("مشاهده واقعی را بنویسید.");
@@ -2361,7 +2517,9 @@ function Observations({ value, setValue }) {
         : [row, ...value],
     );
     setDraft(emptyObservation());
-    setMsg("مشاهده در این مرورگر ذخیره شد.");
+    setMsg("مشاهده در این مرورگر ذخیره شد؛ در حال ارسال به شیت…");
+    const result = await onSend(row);
+    setMsg(result.message);
   }
   const fields = [
     ["record", "شناسه پرونده یا شاهد قابل ردیابی"],
@@ -2461,8 +2619,12 @@ function Observations({ value, setValue }) {
             </label>
           </div>
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <button className="btn btn-primary" type="submit">
-              {draft.id ? "ذخیره ویرایش" : "ثبت مشاهده"}
+            <button
+              className="btn btn-primary"
+              type="submit"
+              disabled={!cloudReady || cloudBusy}
+            >
+              {draft.id ? "ذخیره و ارسال ویرایش" : "ثبت و ارسال مشاهده"}
             </button>
             {draft.id && (
               <button
@@ -2478,8 +2640,8 @@ function Observations({ value, setValue }) {
             </span>
           </div>
           <p className="local-note mt-4">
-            این دفتر محلی است. تعهد مشتری و اقدام رسمی مرتبط، در CRM نیز ثبت
-            شود.
+            پیش‌نویس دفتر در مرورگر می‌ماند و مشاهده ارسالی در شیت ثبت می‌شود.
+            تعهد مشتری و اقدام رسمی مرتبط، در CRM نیز ثبت شود.
           </p>
         </form>
         <section className="panel">
@@ -2518,9 +2680,17 @@ function Observations({ value, setValue }) {
                   </button>
                   <button
                     className="btn"
-                    onClick={() => {
-                      if (window.confirm("این مشاهده از اطلاعات محلی حذف شود؟"))
+                    disabled={!cloudReady || cloudBusy}
+                    onClick={async () => {
+                      if (
+                        window.confirm(
+                          "این مشاهده از دفتر مرورگر حذف و رویداد حذف در شیت ثبت شود؟",
+                        )
+                      ) {
                         setValue(value.filter((y) => y.id !== x.id));
+                        const result = await onSend(x, true);
+                        setMsg(result.message);
+                      }
                     }}
                   >
                     حذف

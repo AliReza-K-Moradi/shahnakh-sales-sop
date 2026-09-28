@@ -68,6 +68,9 @@ export default function SupportSOP({
   dayData,
   setDayData,
   go,
+  onSendReport,
+  cloudReady,
+  cloudBusy,
 }) {
   const [order, setOrder] = useState(0),
     [msg, setMsg] = useState("");
@@ -351,16 +354,17 @@ export default function SupportSOP({
           <DateInput {...{ day, setDay }} />
           <p className="notice my-5">
             سرنخ جدید ثبت‌شده امروز: {n === null ? "وارد نشده" : fa(n)} از هدف
-            ۱۰. این گزارش در همین مرورگر ذخیره می‌شود؛ ارسال مرکزی و اتصال
-            Google Sheets هنوز فعال نیست.
+            ۱۰. پیش‌نویس در مرورگر ذخیره می‌شود. برای ثبت مرکزی، گزارش را به
+            Google Sheets ارسال کن و پیام تأیید دریافت را ببین.
           </p>
           <form
-            onSubmit={(e) => {
+            onSubmit={async (e) => {
               e.preventDefault();
-              setDayData({ reportSavedAt: new Date().toISOString() });
-              setMsg(
-                "گزارش این روز در همین مرورگر ذخیره شد؛ برای ارسال، متن را دریافت کن.",
-              );
+              const reportSavedAt = new Date().toISOString();
+              setDayData({ reportSavedAt });
+              setMsg("گزارش در مرورگر ذخیره شد؛ در حال ارسال به شیت…");
+              const result = await onSendReport({ reportSavedAt });
+              setMsg(result.message);
             }}
           >
             <div className="grid gap-5 md:grid-cols-2">
@@ -384,8 +388,12 @@ export default function SupportSOP({
               ))}
             </div>
             <div className="mt-5 flex flex-wrap gap-3">
-              <button className="btn btn-primary" type="submit">
-                ذخیره گزارش در این مرورگر
+              <button
+                className="btn btn-primary"
+                type="submit"
+                disabled={!cloudReady || cloudBusy}
+              >
+                ثبت و ارسال گزارش به شیت
               </button>
               <button
                 className="btn"
