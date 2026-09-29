@@ -6,8 +6,30 @@ import SupportSOP, {
   SUPPORT_FIELDS,
   SupportPrint,
 } from "./components/SupportSOP.jsx";
-import WeeklyPlan, { MohammadPolicy } from "./components/WeeklyPlan.jsx";
-import { dayPolicy, workStatus, MOHAMMAD_POLICY } from "./lib/schedule.js";
+import WeeklyPlan from "./components/WeeklyPlan.jsx";
+import {
+  dayPolicy,
+  workStatus,
+  policyText,
+  isLeadRole,
+  dailyCallTarget,
+  weeklyCallTarget,
+  weekSummary,
+  leadSources,
+  weekDates,
+  weekday,
+  WEEKDAY_NAMES,
+  WEEKLY_LEAD_TARGET,
+} from "./lib/schedule.js";
+import teamPolicy from "./data/team-policy.json";
+import TeamPlan, {
+  WeeklyPolicy,
+  DayControls,
+  LeadCounter,
+  LeadSourcesView,
+  SampleRules,
+  PolicyPrint,
+} from "./components/TeamPolicy.jsx";
 import { collectVisibleFields, useSheetSync } from "./lib/sheets.js";
 import SheetSubmission from "./components/SheetSubmission.jsx";
 import supportData from "./data/support.json";
@@ -18,7 +40,7 @@ const PEOPLE = [
     name: "قالب استاندارد کارشناس فروش",
     role: "قالب قابل تکثیر",
     kind: "rep",
-    target: 45,
+    target: 80,
     code: "SN-SALES-TPL-01",
   },
   {
@@ -26,7 +48,7 @@ const PEOPLE = [
     name: "محمد یوسفلو",
     role: "کارشناس فروش",
     kind: "rep",
-    target: 45,
+    target: 80,
     code: "SN-SALES-REP-01",
   },
   {
@@ -34,7 +56,7 @@ const PEOPLE = [
     name: "زهرا سحابی",
     role: "کارشناس فروش",
     kind: "rep",
-    target: 45,
+    target: 80,
     code: "SN-SALES-REP-02",
   },
   {
@@ -42,7 +64,7 @@ const PEOPLE = [
     name: "امیرحسین تقی‌زاده",
     role: "کارشناس فروش",
     kind: "rep",
-    target: 45,
+    target: 80,
     code: "SN-SALES-REP-03",
   },
   {
@@ -50,8 +72,8 @@ const PEOPLE = [
     name: "الهام حاج‌حسینی",
     role: "کارشناس فروش و پشتیبانی",
     kind: "support",
-    target: null,
-    leadTarget: 10,
+    target: 40,
+    leadTarget: 240,
     code: "SN-SALES-SUP-01",
   },
   {
@@ -113,7 +135,7 @@ const repDaily = [
   },
   {
     title: "اجرای تماس‌ها",
-    text: "حداقل ۴۵ تماس خروجی قابل‌شمارش در روز کامل؛ ترکیب پایه ۱۵ جدید، ۲۰ پیگیری و ۱۰ احیاست. با افزایش پیگیری، ابتدا سهم احیا و سپس جدید جابه‌جا می‌شود.",
+    text: "یکشنبه، دوشنبه و چهارشنبه، هر روز ۸۰ تماس خروجی قابل‌شمارش انجام بده. شنبه و سه‌شنبه برای پیگیری و پنجشنبه برای پیدا کردن لید و جلسه گزارش‌هاست.",
   },
   {
     title: "ثبت تا پایان هر بازه",
@@ -130,40 +152,40 @@ const repDaily = [
 ];
 function dailyPlan(person) {
   if (person.kind !== "rep") return roles[person.kind].daily;
-  if (person.id !== "mohammad") return repDaily;
   return repDaily.map((item, index) =>
     index === 1
-      ? { title: "تماس و پیگیری طبق برنامه هفتگی", text: MOHAMMAD_POLICY }
+      ? {
+          title: "تماس، پیگیری و لید طبق برنامه هفته",
+          text: policyText(person),
+        }
       : index === 4
         ? {
             title: "بستن روز و مرور هفته",
-            text: "کارهای سررسیددار، حداقل تماس روزهای الزامی و مجموع تماس‌های هفته را مرور کن. برای هر فرصت باز، مالک و اقدام بعدی با تاریخ و ساعت معتبر مشخص کن.",
+            text: "نتیجه تماس‌ها، لیدهای غیرتکراری، موعدهای باز و اقدام بعدی را ثبت کن. گزارش هفته برای جلسه پنجشنبه آماده شود.",
           }
         : item,
   );
 }
 function personMetrics(person) {
   return source.metricData.map((m) =>
-    person.id === "mohammad" && m.id === "calls"
+    person.kind === "rep" && m.id === "calls"
       ? {
           ...m,
-          desc: "رعایت حداقل ۴۵ تماس در روزهای کامل کاریِ غیر از شنبه، سه‌شنبه و پنج‌شنبه. روزهای پیگیری در مخرج این شاخص روزانه قرار نمی‌گیرند.",
+          desc: "رعایت حداقل ۸۰ تماس در روزهای کامل یکشنبه، دوشنبه و چهارشنبه. شنبه و سه‌شنبه روز پیگیری و پنجشنبه روز لیدسازی و گزارش است و در مخرج شاخص تماس قرار نمی‌گیرند.",
           formula:
-            "روزهای تماس الزامی با حداقل ۴۵ تماس ÷ تمام روزهای کامل تماس الزامی × ۱۰۰",
+            "روزهای تماس با حداقل ۸۰ تماس ÷ تمام روزهای کامل تماس مشمول × ۱۰۰",
           target:
-            "۱۰۰٪ روزهای تماس الزامی؛ هدف برنامه‌ریزی هفتگی حدود ۲۷۰ تماس جداگانه مرور شود.",
+            "۱۰۰٪ روزهای تماس مشمول؛ برنامه سه روز تماس ۲۴۰ و هدف لید جدید هر نفر ۲۴۰ در هفته است.",
           extra:
-            "تعطیلی و مرخصی کامل خارج از مخرج و روز کوتاه مصوب جدا گزارش می‌شود. تماس اضافه در روز پیگیری، کسری یک روز تماس الزامی را حذف نمی‌کند. هدف هفتگی وزن جداگانه‌ای به کارت اضافه نمی‌کند.",
+            "تعطیلی و مرخصی کامل از مخرج خارج و روز کوتاه مصوب جدا گزارش شود. تماس اضافه در روز پیگیری، کسری روز تماس را حذف نمی‌کند. وزن شاخص تماس ۱۵ است؛ هدف لید هفتگی وزن تازه‌ای به کارت اضافه نمی‌کند.",
         }
       : m,
   );
 }
 function targetSummary(person) {
-  return person.kind === "support"
-    ? "۱۰ سرنخ جدید در روز؛ بدون حداقل تماس جداگانه"
-    : person.id === "mohammad"
-      ? "حدود ۲۷۰ تماس هفتگی؛ ۴۵ تماس در روزهای کاری غیرپیگیری"
-      : `حداقل ${fa(person.target)} تماس در روز کامل کاری`;
+  return isLeadRole(person)
+    ? `۲۴۰ لید جدید در هفته؛ ${fa(dailyCallTarget(person))} تماس در یکشنبه، دوشنبه و چهارشنبه (${fa(weeklyCallTarget(person))} تماس در سه روز)`
+    : `حداقل ${fa(person.target)} تماس در روز کامل کاری`;
 }
 const fixedRules = [
   "تعریف تماس قابل‌شمارش و سقف تکرار",
@@ -489,7 +511,7 @@ export default function App() {
       reportSavedAt: "زمان ذخیره گزارش",
     };
     for (const [key, label] of Object.entries(dailyLabels)) {
-      if (key === "leads" && person.kind !== "support") continue;
+      if (key === "leads" && !isLeadRole(person)) continue;
       const labels =
         key === "workStatus"
           ? {
@@ -501,7 +523,7 @@ export default function App() {
             ? { phone: "تلفنی", field: "میدانی و حضوری", mixed: "ترکیبی" }
             : null;
       const value =
-        key === "workStatus" && person.id === "mohammad"
+        key === "workStatus" && isLeadRole(person)
           ? workStatus(day, entry)
           : entry[key];
       fields.push({
@@ -515,9 +537,7 @@ export default function App() {
       });
     }
     const checkLabels =
-      person.kind === "support"
-        ? supportData.checks
-        : executionChecks(person);
+      person.kind === "support" ? supportData.checks : executionChecks(person);
     checkLabels.forEach((label, i) =>
       fields.push({
         key: `day.checks.${i}`,
@@ -533,6 +553,53 @@ export default function App() {
           value: entry.report?.[key] || "",
         }),
       );
+    fields.push({
+      key: "policy.version",
+      label: "نسخه برنامه اجرایی",
+      value: teamPolicy.version,
+    });
+    if (isLeadRole(person)) {
+      const weekly = weekSummary(person, day, state.days);
+      fields.push(
+        {
+          key: "policy.sources",
+          label: "منابع لید تعیین‌شده برای فرد",
+          value: leadSources(person).join("، "),
+        },
+        {
+          key: "policy.weeklyLeadTarget",
+          label: "هدف لید جدید هفتگی",
+          value: WEEKLY_LEAD_TARGET,
+        },
+        {
+          key: "policy.callTarget",
+          label: "حداقل تماس روز تماس",
+          value: dailyCallTarget(person),
+        },
+        {
+          key: "policy.day",
+          label: "برنامه روز انتخاب‌شده",
+          value: dayPolicy(day, entry, person).label,
+        },
+        { key: "week.start", label: "شروع هفته", value: weekly.dates[0] },
+        { key: "week.end", label: "پایان هفته", value: weekly.dates[6] },
+        {
+          key: "week.leads",
+          label: "مجموع لید جدید هفته در این مرورگر",
+          value: weekly.leads,
+        },
+        {
+          key: "week.callDays",
+          label: "تماس‌های یکشنبه، دوشنبه و چهارشنبه در این مرورگر",
+          value: weekly.plannedDayCalls,
+        },
+        {
+          key: "week.allCalls",
+          label: "کل تماس‌های هفته در این مرورگر",
+          value: weekly.totalCalls,
+        },
+      );
+    }
     fields.push(
       ...collectVisibleFields(headingRef.current).map((field) => ({
         ...field,
@@ -618,6 +685,7 @@ export default function App() {
       : [
           ["overview", "SOP من", "House"],
           ["daily", "کار روزانه", "PhoneCall"],
+          ["team-plan", "برنامه تیم", "Users"],
           ...(isRep
             ? []
             : [
@@ -706,7 +774,7 @@ export default function App() {
             ))}
           </nav>
           <div className="mt-auto pt-6 text-sm text-muted">
-            <p>نسخه فردی ۱٫۲</p>
+            <p>نسخه فردی ۱٫۳</p>
             <p>مرجع گزارش رسمی: CRM</p>
           </div>
         </aside>
@@ -822,6 +890,7 @@ export default function App() {
             <div key={person.id + "-" + page} className="page-enter">
               {person.kind === "support" && (
                 <SupportSOP
+                  days={state.days}
                   {...{
                     page,
                     person,
@@ -835,6 +904,12 @@ export default function App() {
                   onSendReport={sendCurrent}
                   cloudReady={sheetSync.ready}
                   cloudBusy={sheetSync.busy}
+                />
+              )}
+              {page === "team-plan" && (
+                <TeamPlan
+                  {...{ person, day, setDay, dayData, setDayData }}
+                  days={state.days}
                 />
               )}
               {page === "overview" && person.kind !== "support" && (
@@ -999,7 +1074,7 @@ export default function App() {
         >
           <div className="mb-3 flex items-center justify-between gap-3">
             <span className="text-sm font-semibold">
-              نسخه اصلی SOP جامع با مبنای ۴۵ تماس کارشناسان
+              نسخه مرجع اولیه SOP جامع؛ برنامه جاری در اصلاحیه تیم آمده است
             </span>
             <button
               className="btn px-3"
@@ -1055,9 +1130,8 @@ function Overview({
   go,
 }) {
   const isRep = person.kind === "rep";
-  const isMohammad = person.id === "mohammad";
-  const policy = isMohammad
-    ? dayPolicy(day, dayData)
+  const policy = isRep
+    ? dayPolicy(day, dayData, person)
     : { target: person.target };
   const labels = executionChecks(person);
   const count = Number(dayData.calls),
@@ -1106,12 +1180,12 @@ function Overview({
               className="text-6xl font-bold text-leaf"
               data-testid="role-target"
             >
-              {fa(isMohammad ? 270 : person.target)}
+              {fa(person.target)}
             </strong>
             <span className="text-sm">
-              {isMohammad ? "هدف حدودی تماس" : "حداقل تماس خروجی"}
+              {"حداقل تماس خروجی"}
               <br />
-              {isMohammad ? "در هفته" : "در روز کامل کاری"}
+              {isRep ? "در یکشنبه، دوشنبه و چهارشنبه" : "در روز کامل کاری"}
             </span>
           </div>
         </div>
@@ -1122,7 +1196,7 @@ function Overview({
           را تکمیل کنید. قواعد مشترک و KPI از SOP جامع گرفته می‌شوند.
         </div>
       )}
-      {isMohammad && <MohammadPolicy compact />}
+      {isRep && <WeeklyPolicy person={person} compact />}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <button
           onClick={() => go("journey")}
@@ -1184,67 +1258,9 @@ function Overview({
             />
             <span className="text-muted">{dateLabel(day)}</span>
           </label>
-          {isMohammad && (
-            <div className="mb-5 space-y-4 rounded-xl bg-[#f4f7ef] p-4">
-              <label>
-                <span className="label">نوع روز کاری</span>
-                <select
-                  className="field"
-                  aria-label="نوع روز کاری"
-                  value={workStatus(day, dayData)}
-                  onChange={(e) => setDayData({ workStatus: e.target.value })}
-                >
-                  <option value="full">روز کامل کاری</option>
-                  <option value="off">تعطیل یا مرخصی کامل</option>
-                  <option value="short">روز کوتاه مصوب</option>
-                </select>
-              </label>
-              <p className="text-sm">
-                <strong>{policy.label}: </strong>
-                {policy.message}
-              </p>
-              {policy.followup && (
-                <label>
-                  <span className="label">روش پیگیری امروز</span>
-                  <select
-                    className="field"
-                    aria-label="روش پیگیری امروز"
-                    value={dayData.followupMode || ""}
-                    onChange={(e) =>
-                      setDayData({ followupMode: e.target.value })
-                    }
-                  >
-                    <option value="">انتخاب کنید</option>
-                    <option value="phone">تلفنی</option>
-                    <option value="field">میدانی و حضوری</option>
-                    <option value="mixed">ترکیبی</option>
-                  </select>
-                </label>
-              )}
-              <label>
-                <span className="label">ملاقات حضوری انجام‌شده</span>
-                <input
-                  className="field"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={dayData.visits || ""}
-                  onChange={(e) => setDayData({ visits: e.target.value })}
-                />
-              </label>
-              <label>
-                <span className="label">نتیجه پیگیری و اقدام بعدی</span>
-                <textarea
-                  className="field"
-                  aria-label="نتیجه پیگیری و اقدام بعدی"
-                  rows="2"
-                  maxLength="2000"
-                  value={dayData.followupNotes || ""}
-                  onChange={(e) =>
-                    setDayData({ followupNotes: e.target.value })
-                  }
-                />
-              </label>
+          {isRep && (
+            <div className="mb-5">
+              <DayControls {...{ person, day, dayData, setDayData }} />
             </div>
           )}
           <Checklist
@@ -1258,9 +1274,12 @@ function Overview({
           </p>
         </section>
         <div className="space-y-5">
+          {isRep && (
+            <LeadCounter {...{ person, day, days, dayData, setDayData }} />
+          )}
           <section className="panel">
             <h2 className="section-title">
-              {isMohammad ? "ثبت تماس‌های این روز" : "مرور حداقل تماس امروز"}{" "}
+              {isRep ? "ثبت تماس‌های این روز" : "مرور حداقل تماس امروز"}{" "}
               <Icon name="PhoneCall" />
             </h2>
             <label htmlFor="daily-count" className="label">
@@ -1347,7 +1366,15 @@ function Overview({
           </section>
         </div>
       </div>
-      {isMohammad && <WeeklyPlan {...{ day, days, setDay }} />}
+      {isRep && (
+        <>
+          <WeeklyPlan {...{ person, day, days, setDay }} />
+          <LeadSourcesView person={person} />
+          <button className="btn" onClick={() => go("team-plan")}>
+            قواعد کالیته و تقویم جلسات
+          </button>
+        </>
+      )}
       <section className="panel">
         <h2 className="section-title">ساختار سند فردی</h2>
         <div className="grid gap-6 md:grid-cols-2">
@@ -1378,12 +1405,12 @@ function Overview({
 }
 function Daily({ person }) {
   const isRep = person.kind === "rep";
-  const isMohammad = person.id === "mohammad";
-  const [follow, setFollow] = useState(20),
+  const [selectedDay, setSelectedDay] = useState(weekday(today())),
     [call, setCall] = useState("out");
-  const newCount = Math.max(0, Math.min(15, 45 - follow)),
-    revive = Math.max(0, 45 - follow - newCount),
-    total = follow + newCount + revive;
+  const date = weekDates(today()).find((d) => weekday(d) === selectedDay);
+  const policy = isRep
+    ? dayPolicy(date, {}, person)
+    : { target: person.target };
   const c = source.callCases.find((x) => x[0] === call);
   return (
     <>
@@ -1391,9 +1418,9 @@ function Daily({ person }) {
         kicker="اجرای روزانه"
         title="تماس‌ها با اولویت مشتری"
         desc={
-          isMohammad
-            ? MOHAMMAD_POLICY
-            : `حداقل ${fa(person.target)} تماس خروجی قابل‌شمارش در هر روز کامل کاری برای ${person.name}.`
+          isRep
+            ? policyText(person)
+            : `حداقل ${fa(person.target)} تماس شخصی در هر روز کامل کاری برای ${person.name}.`
         }
       />
       <div className="section-stack">
@@ -1401,104 +1428,58 @@ function Daily({ person }) {
           <section className="panel">
             {isRep ? (
               <>
-                <h3 className="section-title">
-                  شبیه‌ساز ترکیب تماس <span className="badge">آموزشی</span>
-                </h3>
-                <div className="flex items-center gap-4">
-                  <strong className="text-6xl font-bold text-[#287858]">
-                    {fa(total)}
-                  </strong>
-                  <div>
-                    تماس برنامه‌ریزی‌شده
-                    <p className="caption">
-                      {isMohammad
-                        ? "الگوی روزهای تماس الزامی؛ در روز پیگیری ترکیب انعطاف‌پذیر است"
-                        : "حداقل روز کامل ۴۵ تماس"}
-                    </p>
-                  </div>
-                </div>
-                <div className="my-5 flex h-12 overflow-hidden rounded-xl text-white">
-                  {[
-                    [newCount, "#287858"],
-                    [follow, "#257e89"],
-                    [revive, "#b76c31"],
-                  ].map(([n, color], i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-center transition-all"
-                      style={{
-                        width: (n / total) * 100 + "%",
-                        background: color,
-                      }}
-                    >
-                      {n > 0 ? fa(n) : ""}
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-sm">
-                  {[
-                    ["جدید", newCount],
-                    ["پیگیری", follow],
-                    ["احیا", revive],
-                  ].map(([l, n]) => (
-                    <div key={l}>
-                      {l}
-                      <strong className="block text-2xl">{fa(n)}</strong>
-                    </div>
-                  ))}
-                </div>
-                <label htmlFor="mix" className="label mt-5">
-                  پیگیری موردنیاز: {fa(follow)} تماس
+                <h2 className="section-title">مرور برنامه روزهای هفته</h2>
+                <label>
+                  <span className="label">روز هفته برای مرور برنامه</span>
+                  <select
+                    className="field"
+                    aria-label="روز هفته برای مرور برنامه"
+                    value={selectedDay}
+                    onChange={(e) => setSelectedDay(Number(e.target.value))}
+                  >
+                    {[6, 0, 1, 2, 3, 4, 5].map((index) => (
+                      <option key={index} value={index}>
+                        {WEEKDAY_NAMES[index]}
+                      </option>
+                    ))}
+                  </select>
                 </label>
-                <input
-                  id="mix"
-                  type="range"
-                  min="20"
-                  max="60"
-                  step="1"
-                  value={follow}
-                  onChange={(e) => setFollow(+e.target.value)}
-                  className="w-full"
-                  dir="ltr"
-                />
+                <p className="mt-4 font-bold">{policy.label}</p>
+                <p className="mt-3">{policy.message}</p>
+                <p className="notice mt-4">
+                  روزهای تماس برای لیدهای جدید برنامه‌ریزی می‌شوند. پیگیری‌های
+                  سررسیددار مشتری در همه روزها مقدم‌اند و به روز بعد منتقل
+                  نمی‌شوند.
+                </p>
                 <p className="caption mt-3">
-                  {follow <= 20
-                    ? "ترکیب پایه ۱۵ جدید، ۲۰ پیگیری و ۱۰ احیا."
-                    : follow <= 30
-                      ? "افزایش پیگیری از سهم احیا کم شده است؛ دلیل تغییر ترکیب ثبت شود."
-                      : follow <= 45
-                        ? "احیا به صفر رسیده و بخشی از سهم جدید به پیگیری منتقل شده است."
-                        : "۴۵ حداقل است. برای این حجم از پیگیری، ظرفیت و کمک جانشین با مدیر فروش بررسی شود؛ موعدها خودکار عقب نروند."}
+                  یافتن ۲۴۰ لید با انجام ۲۴۰ تماس یکی نیست. هر تماس در یکی از
+                  دسته‌های جدید، پیگیری یا احیا ثبت شود؛ تعداد هر دسته از فعالیت
+                  واقعی گرفته می‌شود.
                 </p>
               </>
             ) : (
               <>
-                <h3 className="section-title">برنامه ۱۲ تماس شخصی</h3>
+                <h2 className="section-title">برنامه ۱۲ تماس شخصی</h2>
                 <p>
-                  این تماس‌ها را خودِ {person.name} انجام می‌دهد و فعالیت به نام
-                  او در CRM ثبت می‌شود. تماس‌های کارشناسان به حساب تماس شخصی این
-                  نقش اضافه نمی‌شوند.
+                  این تماس‌ها را خودِ {person.name} انجام و به نام خودش در CRM
+                  ثبت می‌کند. تماس‌های کارشناسان به حساب تماس شخصی این نقش اضافه
+                  نمی‌شوند.
                 </p>
-                <div className="notice mt-4">
-                  پیگیری سررسیددار مقدم است. سهم تماس جدید، پیگیری و احیا برای
-                  این نقش عدد ثابتی ندارد و متناسب با پرونده‌های تخصیص‌یافته
-                  تعیین می‌شود.
-                </div>
-                <p className="caption mt-4">
-                  تعریف تماس و سقف تکرار از SOP جامع است؛ عدد ۱۲، اصلاح اختصاصی
-                  این نقش در نسخه فردی است.
+                <p className="notice mt-4">
+                  پیگیری سررسیددار مقدم است؛ سهم تماس جدید، پیگیری و احیا بر
+                  اساس پرونده‌های تخصیص‌یافته تعیین می‌شود.
                 </p>
               </>
             )}
           </section>
           <section className="panel">
-            <h3 className="section-title">کدام فعالیت یک تماس است؟</h3>
+            <h2 className="section-title">کدام فعالیت یک تماس است؟</h2>
             <div className="flex flex-wrap gap-2">
               {source.callCases.map((x) => (
                 <button
-                  key={x[0]}
                   className={"tab " + (call === x[0] ? "tab-active" : "")}
                   aria-pressed={call === x[0]}
+                  key={x[0]}
                   onClick={() => setCall(x[0])}
                 >
                   {x[1]}
@@ -1512,49 +1493,32 @@ function Daily({ person }) {
               }
               aria-live="polite"
             >
-              <h4 className="font-bold">
-                {c[3].replace(
-                  "عدد ۴۵",
-                  isMohammad
-                    ? "مجموع تماس روزانه یا هفتگی"
-                    : "عدد " + fa(person.target),
-                )}
-              </h4>
-              <p className="mt-2">{c[4].replaceAll("۴۵", fa(person.target))}</p>
+              <h3 className="font-bold">
+                {c[3].replace("عدد ۴۵", "شمارش تماس")}
+              </h3>
+              <p className="mt-2">{c[4].replaceAll("۴۵", "هدف تماس روز")}</p>
             </div>
             <p className="caption mt-4">
-              تعداد تلاش خروجی با تعداد مکالمه دوطرفه متفاوت است. تا پیش از
-              اتصال تلفنی، مبنا «تماس خروجی ثبت‌شده در CRM» است.
+              تماس خروجی واقعی و ثبت‌شده در CRM مبناست؛ پیام، جلسه و تماس ورودی
+              در هدف تماس خروجی قرار نمی‌گیرند.
             </p>
           </section>
         </div>
         <section className="panel">
-          <h3 className="section-title">ترتیب اجرای روز</h3>
+          <h2 className="section-title">ترتیب اجرای روز</h2>
           <Cards items={dailyPlan(person)} />
         </section>
-        <Accordion title="روز کامل و استثناهای کاری">
+        {isRep && <LeadSourcesView person={person} />}
+        <Accordion title="روز کامل و قواعد شمارش">
           <p>
-            روز کامل یعنی تمام شیفت فعال طبق برنامه مصوب. تعطیلی و مرخصی کامل از
-            روزهای مشمول خارج‌اند؛ روز کوتاه رسمی باید از پیش تعریف و جدا گزارش
-            شود.
+            روز کامل تمام شیفت مصوب است؛ تعطیلی و مرخصی کامل از روزهای مشمول
+            خارج و روز کوتاه مصوب جدا گزارش می‌شود. تماس اضافه فردا کسری روز
+            تماس امروز را حذف نمی‌کند.
           </p>
           <p>
-            {isMohammad
-              ? "شنبه، سه‌شنبه و پنج‌شنبه روز پیگیری با امکان تماس یا حضور میدانی‌اند و حداقل ثابت ۴۵ ندارند. در سایر روزهای کامل کاری، ۴۵ تماس الزامی است. هدف حدود ۲۷۰ تماس هفتگی با مدیریت برنامه همه روزها پیگیری می‌شود؛ کسری روز تماس الزامی جداگانه ثبت می‌شود."
-              : "بازدید حضوری حداقل تماس روز کامل را کاهش نمی‌دهد. تماس اضافه فردا کسری امروز را حذف نمی‌کند."}{" "}
-            برنامه ساعت کاری و استثناها در اطلاعات فردی ثبت شود.
-          </p>
-        </Accordion>
-        <Accordion title="تماس دوم و دسته‌بندی تماس">
-          <p>
-            تلاش دوم همان روز فقط با درخواست مشتری، تعهد سفارش یا بی‌پاسخی در
-            ساعت متفاوت شمرده می‌شود. سقف شمارش برای هر مخاطب در روز ۲ تماس است.
-            اقدام ضروری بیشتر ثبت می‌شود، اما به KPI تماس اضافه نمی‌شود.
-          </p>
-          <p>
-            هر تماس فقط یک دسته دارد. لید قدیمی با موعد امروز، «پیگیری» است؛
-            احیا به دلیل مرتبط و تازه نیاز دارد. کارهای غیرتلفنی سررسیددار نیز
-            در برنامه روز جا دارند.
+            سقف شمارش هر مخاطب در روز دو تماس است. تماس دوم فقط با درخواست
+            مشتری، تعهد سفارش یا بی‌پاسخی واقعی در ساعت متفاوت شمرده می‌شود.
+            ملاقات حضوری به‌عنوان تماس تلفنی ثبت نشود.
           </p>
         </Accordion>
       </div>
@@ -1730,9 +1694,9 @@ function Followup({ person }) {
         title="الان وقت کدام اقدام است؟"
         desc="موعد مشخص توافق‌شده با مشتری، بر فاصله‌های عمومی زیر مقدم است."
       />
-      {person.id === "mohammad" && (
+      {isLeadRole(person) && (
         <div className="mb-5">
-          <MohammadPolicy compact />
+          <WeeklyPolicy person={person} compact />
         </div>
       )}
       <div className="section-stack">
@@ -1871,52 +1835,6 @@ function Field({ person }) {
   const [split, setSplit] = useState(false),
     [checks, setChecks] = useState([]);
   const isRep = person.kind === "rep";
-  if (person.id === "mohammad")
-    return (
-      <>
-        <Heading
-          kicker="برنامه اختصاصی پیگیری"
-          title="پیگیری تلفنی یا حضوری لیدهای خودت"
-          desc="شنبه، سه‌شنبه و پنج‌شنبه برای پیگیری ملاقات‌ها و لیدها در نظر گرفته شده‌اند. روش هر پیگیری را بر اساس نیاز پرونده و موعد مشتری انتخاب کن."
-        />
-        <div className="section-stack">
-          <MohammadPolicy />
-          <section className="panel">
-            <h2 className="section-title">هماهنگی پیش از خروج</h2>
-            <List
-              items={[
-                "در پیگیری حضوری، مقصد، مشتری، هدف ملاقات و ساعت خروج و برگشت را مشخص کن.",
-                "برنامه را تا ساعت ۱۴ روز کاری قبل با حمید هماهنگ و در CRM ثبت کن؛ کارهای موعددار و جانشین دفتر روشن باشند.",
-                "نتیجه واقعی هر پیگیری، کانال تلفنی یا حضوری، مالک، اقدام بعدی و موعد را ثبت کن.",
-                "خلاصه ملاقات همان روز و جزئیات حداکثر تا ساعت ۱۰ روز کاری بعد ثبت شوند.",
-                "خروج هم‌زمان چند کارشناس به برنامه پوشش مصوب نیاز دارد؛ روز پیگیری به‌تنهایی مجوز خروج بدون هماهنگی نیست.",
-              ]}
-            />
-          </section>
-          <section className="panel">
-            <h2 className="section-title">
-              آمادگی پیگیری حضوری <span className="badge">تمرین</span>
-            </h2>
-            <Checklist
-              labels={[
-                "ملاقات و هدف پیگیری تأیید شده‌اند.",
-                "مسیر و ساعت خروج و برگشت روشن است.",
-                "سوابق لید و کالیته مرتبط آماده است.",
-                "جانشین و تعهدهای سررسیددار هماهنگ شده‌اند.",
-                "توزیع تماس هفته برای هدف حدود ۲۷۰ مرور شده است.",
-              ]}
-              values={checks}
-              setValues={setChecks}
-            />
-          </section>
-          <p className="notice">
-            پیگیری تلفنی در روزهای پیگیری مجاز است. ملاقات حضوری و تماس تلفنی در
-            کانال‌های جدا ثبت می‌شوند؛ فقط تماس خروجی معتبر در مجموع هفته شمرده
-            می‌شود.
-          </p>
-        </div>
-      </>
-    );
   return (
     <>
       <Heading
@@ -1928,13 +1846,15 @@ function Field({ person }) {
         }
         desc={
           isRep
-            ? "هر کارشناس یک روز در هفته برای بازاریابی حضوری وقت دارد."
+            ? "پیگیری و ملاقات حضوری در شنبه و سه‌شنبه، با هماهنگی حمید و پوشش تعهدهای دفتر برنامه‌ریزی شود."
             : person.kind === "manager"
               ? "حمید برنامه و پوشش تیم را هماهنگ می‌کند؛ بازدید شخصی او در برنامه فردی تعیین می‌شود."
               : "بازدیدهای دوره تجربه با حمید هماهنگ و در برنامه فردی تعیین می‌شوند؛ استاندارد اجرای بازدید در ادامه آمده است."
         }
       />
       <div className="section-stack">
+        {isRep && <WeeklyPolicy person={person} />}
+        <SampleRules />
         {!isRep && (
           <p className="notice">
             الگوی یک روز و حداقل دو ملاقات زیر، استاندارد کارشناسان در SOP جامع
@@ -1986,9 +1906,9 @@ function Field({ person }) {
               تصویب شود.
             </p>
             <p className="mt-4 text-sm">
-              بازدید روز کامل را کوتاه نمی‌کند. حداقل تماس {isRep ? "۴۵" : "۱۲"}{" "}
-              باقی می‌ماند؛ کمبود ظرفیت باید از پیش با تنظیم ساعت یا الگوی دو
-              نوبتی حل شود.
+              {isRep
+                ? "شنبه و سه‌شنبه روز پیگیری تلفنی یا حضوری‌اند و حداقل ثابت تماس ندارند. در یکشنبه، دوشنبه و چهارشنبه، حداقل ۸۰ تماس هر روز پابرجاست."
+                : "بازدید روز کامل را کوتاه نمی‌کند؛ هدف ۱۲ تماس شخصی پابرجاست و پوشش کارها از پیش هماهنگ شود."}
             </p>
           </section>
           <section className="panel">
@@ -2097,9 +2017,9 @@ function Metrics({ person, go }) {
                 ))}
               </div>
               <p className="caption mt-4">
-                محمد: برنامه هفتگی حدود ۲۷۰ و ۴۵ تماس در روزهای کاری غیرپیگیری؛
-                زهرا و امیرحسین: ۴۵ تماس روز کامل. الهام: ۱۰ سرنخ جدید روزانه و
-                گزارش پشتیبانی جداگانه.
+                هر چهار کارشناس: ۲۴۰ لید جدید در هفته و لیدسازی پنجشنبه. یوسفلو،
+                سحابی و امیرحسین: ۸۰ تماس در یکشنبه، دوشنبه و چهارشنبه؛ الهام:
+                ۴۰ تماس در همین روزها و گزارش پشتیبانی جداگانه.
               </p>
               <p className="caption mt-4">
                 برای محاسبه آموزشی کارت ۱۰۰ امتیازی، یکی از کارشناسان را در منوی
@@ -2115,11 +2035,7 @@ function Metrics({ person, go }) {
       <Heading
         kicker="مطابق SOP جامع"
         title="پنج شاخص عملکرد کارشناس"
-        desc={
-          person.id === "mohammad"
-            ? "وزن‌های پنج شاخص مرجع حفظ شده‌اند. روزهای مشمول شاخص تماس با برنامه اختصاصی محمد تطبیق داده شده‌اند؛ هدف حدود ۲۷۰ تماس هفتگی جداگانه مرور می‌شود."
-            : "وزن‌ها، تعریف و فرمول مرجع مبنا هستند. هدف سفارش باید پیش از دوره مصوب باشد."
-        }
+        desc="وزن‌های پنج شاخص مرجع حفظ شده‌اند؛ شاخص تماس با حداقل ۸۰ تماس در یکشنبه، دوشنبه و چهارشنبه سنجیده می‌شود. هدف ۲۴۰ لید هفتگی جدا گزارش می‌شود."
       />
       <div className="section-stack">
         <div className="grid gap-5 xl:grid-cols-[290px_1fr]">
@@ -2308,7 +2224,7 @@ const labels = {
   orders: ["سفارش معتبر خالص", "هدف مصوب سفارش"],
   post: ["انجام‌شده تا موعد اولیه", "همه وظایف سررسیددار"],
   pre: ["انجام‌شده تا موعد اولیه", "همه وظایف سررسیددار"],
-  calls: ["روزهای با حداقل ۴۵ تماس", "روزهای کامل مشمول"],
+  calls: ["روزهای تماس با حداقل ۸۰ تماس", "روزهای کامل تماس مشمول"],
   quality: ["رکوردهای صحیح", "کل نمونه بررسی‌شده"],
 };
 const samples = {
@@ -2346,10 +2262,10 @@ function Calculator({ person }) {
                 <span className="badge">وزن {fa(m.weight)}</span>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                {(person.id === "mohammad" && m.id === "calls"
+                {(m.id === "calls"
                   ? [
-                      "روزهای تماس الزامی با حداقل ۴۵ تماس",
-                      "تمام روزهای کامل تماس الزامی",
+                      "روزهای یکشنبه، دوشنبه و چهارشنبه با حداقل ۸۰ تماس",
+                      "تمام روزهای کامل یکشنبه، دوشنبه و چهارشنبه مشمول",
                     ]
                   : labels[m.id]
                 ).map((l, j) => (
@@ -2400,10 +2316,9 @@ function Calculator({ person }) {
               : "جمع کامل آماده نیست؛ وزن‌ها بازتوزیع نشده‌اند."}
           </p>
           <p className="mt-5 border-t border-[#ffffff25] pt-4 text-sm">
-            {person.id === "mohammad"
-              ? "تماس با هدف ۱۰۰٪ روزهای تماس الزامی؛ شنبه، سه‌شنبه و پنج‌شنبه از مخرج شاخص روزانه خارج‌اند. هدف هفتگی حدود ۲۷۰ جداگانه مرور می‌شود."
-              : "تماس با هدف ۱۰۰٪ روزهای مشمول."}{" "}
-            پیگیری و کیفیت ثبت با هدف ۹۵٪؛ سفارش با هدف فردی مصوب.
+            تماس با هدف ۱۰۰٪ روزهای تماس مشمول؛ شنبه، سه‌شنبه و پنجشنبه از مخرج
+            تماس خارج‌اند. لید جدید ۲۴۰ در هفته جدا گزارش می‌شود. پیگیری و کیفیت
+            ثبت با هدف ۹۵٪؛ سفارش با هدف فردی مصوب.
           </p>
         </aside>
       </div>
@@ -2721,17 +2636,17 @@ function Reference({ person, onOpen }) {
               </bdi>
             </p>
             <p>
-              زهرا سحابی، امیرحسین تقی‌زاده و قالب کارشناس، حداقل ۴۵ تماس روز
-              کامل دارند. محمد یوسفلو در شنبه، سه‌شنبه و پنج‌شنبه برنامه پیگیری
-              تلفنی یا حضوری دارد؛ در سایر روزهای کامل کاری حداقل ۴۵ تماس و در
-              هفته هدف حدود ۲۷۰ تماس را دنبال می‌کند. حمید فاطمی و سعید تقی‌زاده
-              روزانه ۱۲ تماس دارند.
+              اصلاحیه جاری تیم: لیدسازی و جلسه گزارش‌ها پنجشنبه؛ شنبه و سه‌شنبه
+              پیگیری؛ یکشنبه، دوشنبه و چهارشنبه برای سه کارشناس فروش هر روز ۸۰
+              تماس و برای الهام هر روز ۴۰ تماس. هدف هر چهار کارشناس، هر نفر ۲۴۰
+              لید جدید در هفته است. حمید فاطمی و سعید تقی‌زاده روزانه ۱۲ تماس
+              شخصی دارند.
             </p>
             <p>
-              الهام حاج‌حسینی، کارشناس فروش و پشتیبانی، بر اساس فایل اختصاصی
-              «sop حاج حسینی.docx» روزانه ۱۰ سرنخ جدید ایجاد می‌کند و حداقل تماس
-              جداگانه ندارد. گردش سفارش، مطالبات، تنخواه و گزارش او در بخش‌های
-              اختصاصی نقش آمده‌اند.
+              فایل اصلی مرجع و فایل اختصاصی الهام، سابقه مبنا هستند. در موضوع
+              برنامه تماس، لید، کالیته و جلسات، اصلاحیه ۱٫۳ طبق دستور جاری مالک
+              اجرا می‌شود. گردش سفارش، مطالبات، تنخواه و گزارش الهام در بخش‌های
+              اختصاصی آمده‌اند.
             </p>
             <p>
               بخش‌های مدیریت تیم و تجربه مدیرعامل، تنظیم اجرایی نقش‌ها بر پایه
@@ -2816,7 +2731,7 @@ function PrintDocument({ person, profile, observations, day, dayData }) {
           : `SOP فردی ${person.name}`}
       </h1>
       <p className="print-meta">
-        شاه‌نخ | {person.role} | نسخه ۱٫۱ | {person.code}
+        شاه‌نخ | {person.role} | نسخه ۱٫۳ | {person.code}
       </p>
       <p>مرجع مشترک: ShahNakh-Sales-SOP-KPI-Interactive-FA.html</p>
       <p>
@@ -2845,6 +2760,7 @@ function PrintDocument({ person, profile, observations, day, dayData }) {
           ))}
         </tbody>
       </table>
+      <PolicyPrint person={person} />
       <h2>قواعد ثابت و بخش شخصی</h2>
       <p>
         تعریف تماس، مسیر مشتری، کنترل سفارش، قواعد پیگیری و ثبت CRM از SOP جامع
@@ -2866,8 +2782,8 @@ function PrintDocument({ person, profile, observations, day, dayData }) {
         مشتری، تعهد سفارش یا بی‌پاسخی در ساعت متفاوت. هر تماس یک دسته دارد.
       </p>
       <p>
-        {person.id === "mohammad"
-          ? MOHAMMAD_POLICY +
+        {isRep
+          ? policyText(person) +
             " تماس اضافه در یک روز، کسری روز تماس الزامی را حذف نمی‌کند. روزهای پیگیری حداقل ثابت روزانه ندارند."
           : "روز کامل تمام شیفت مصوب است؛ بازدید آن را کوتاه نمی‌کند. تماس اضافه فردا کسری امروز را حذف نمی‌کند."}{" "}
         تعطیلی و مرخصی کامل خارج از مخرج روزانه‌اند. روز کوتاه رسمی از پیش تعریف
@@ -2951,13 +2867,13 @@ function PrintDocument({ person, profile, observations, day, dayData }) {
         فعالیت به نام انجام‌دهنده واقعی است.
       </p>
       <h2>بازدید و جانشینی</h2>
-      {person.id === "mohammad" ? (
+      {isRep ? (
         <p>
-          شنبه، سه‌شنبه و پنج‌شنبه پیگیری ملاقات‌ها و لیدهای خودت را تلفنی،
-          حضوری یا ترکیبی انجام بده. خروج حضوری با مقصد، هدف و ساعت روشن و
-          هماهنگی حمید انجام شود؛ برنامه تا ساعت ۱۴ روز کاری قبل ثبت شود. خلاصه
-          همان روز و جزئیات تا ساعت ۱۰ روز کاری بعد در CRM ثبت شوند. ملاقات
-          حضوری به‌عنوان تماس تلفنی شمرده نمی‌شود.
+          شنبه و سه‌شنبه پیگیری ملاقات‌ها و لیدهای خودت را تلفنی، حضوری یا
+          ترکیبی انجام بده. خروج حضوری با مقصد، هدف و ساعت روشن و هماهنگی حمید
+          انجام شود؛ برنامه تا ساعت ۱۴ روز کاری قبل ثبت شود. خلاصه همان روز و
+          جزئیات تا ساعت ۱۰ روز کاری بعد در CRM ثبت شوند. ملاقات حضوری به‌عنوان
+          تماس تلفنی شمرده نمی‌شود.
         </p>
       ) : (
         <p>
@@ -2973,8 +2889,8 @@ function PrintDocument({ person, profile, observations, day, dayData }) {
       <p>
         جانشین و پیگیری‌های موعددار از پیش هماهنگ شوند. خروج هم‌زمان بیش از یک
         کارشناس، به تصویب برنامه پوشش تازه نیاز دارد.{" "}
-        {person.id === "mohammad"
-          ? "تماس‌ها و حضور میدانی برای هدف حدود ۲۷۰ تماس هفتگی مدیریت شوند؛ حداقل ۴۵ تماس روزهای کاری غیرپیگیری پابرجاست."
+        {isRep
+          ? "در یکشنبه، دوشنبه و چهارشنبه حداقل ۸۰ تماس انجام شود؛ روزهای پیگیری شنبه و سه‌شنبه و روز لیدسازی پنجشنبه حداقل ثابت تماس ندارند."
           : `حداقل ${fa(person.target)} تماس روز کامل این نقش پابرجاست.`}
       </p>
       <h2>شاخص‌های عملکرد</h2>
@@ -3058,12 +2974,12 @@ function PrintDocument({ person, profile, observations, day, dayData }) {
       )}
       <h2>مرجع و کنترل تغییر</h2>
       <p>
-        عدد ۱۲ فقط برای حمید فاطمی و سعید تقی‌زاده، طبق دستور اختصاصی این نسخه
-        است. مبنای زهرا و امیرحسین ۴۵ تماس روز کامل است؛ محمد برنامه اختصاصی
-        پیگیری و هدف حدود ۲۷۰ هفتگی دارد و الهام ۱۰ سرنخ جدید روزانه بدون حداقل
-        تماس جداگانه. هر تغییر به استاندارد، نسخه و تاریخ اجرای روشن می‌خواهد.
-        اطلاعات این فایل محلی است؛ مرجع رسمی گزارش و تأییدها CRM و سیاست مصوب
-        شرکت است.
+        مبنای جاری نسخه ۱٫۳: هر چهار کارشناس ۲۴۰ لید جدید در هفته؛ سه کارشناس
+        فروش ۸۰ تماس و الهام ۴۰ تماس در یکشنبه، دوشنبه و چهارشنبه. شنبه و
+        سه‌شنبه پیگیری و پنجشنبه لیدسازی و گزارش است. حمید فاطمی و سعید تقی‌زاده
+        روزانه ۱۲ تماس شخصی دارند. پیش‌نویس‌ها در مرورگر و ثبت‌های ارسالی با
+        تأیید دریافت در Google Sheets نگهداری می‌شوند؛ گزارش رسمی و تأییدها در
+        CRM و اسناد مصوب شرکت ثبت شوند.
       </p>
     </article>
   );

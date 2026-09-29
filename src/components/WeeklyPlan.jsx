@@ -1,75 +1,60 @@
 import React from "react";
 import {
   dayPolicy,
-  weekDates,
   weekday,
   WEEKDAY_NAMES,
   validCount,
-  MOHAMMAD_POLICY,
-  MOHAMMAD_WEEKLY_TARGET,
+  weeklyCallTarget,
+  WEEKLY_LEAD_TARGET,
+  weekSummary,
 } from "../lib/schedule.js";
-
 const fa = (n) => Number(n).toLocaleString("fa-IR");
 const label = (day) =>
   new Intl.DateTimeFormat("fa-IR", { month: "long", day: "numeric" }).format(
     new Date(day + "T12:00:00"),
   );
-export function MohammadPolicy({ compact = false }) {
-  return (
-    <section className={compact ? "notice" : "panel"}>
-      <h2 className={compact ? "mb-2 font-bold" : "section-title"}>
-        برنامه اختصاصی محمد یوسفلو
-      </h2>
-      <p>{MOHAMMAD_POLICY}</p>
-      <p className="mt-3 text-sm text-muted">
-        موعد مشخص مشتری در تمام روزهای کاری مقدم است و به روز پیگیری بعد منتقل
-        نمی‌شود. ملاقات حضوری به‌عنوان تماس تلفنی شمرده نمی‌شود.
-      </p>
-    </section>
-  );
-}
-export default function WeeklyPlan({ day, days, setDay }) {
-  const dates = weekDates(day);
-  const total = dates.reduce(
-    (sum, date) => sum + (validCount(days["mohammad_" + date]?.calls) || 0),
-    0,
-  );
-  const recorded = dates.filter(
-    (date) => validCount(days["mohammad_" + date]?.calls) !== null,
-  ).length;
+export default function WeeklyPlan({ person, day, days, setDay }) {
+  const summary = weekSummary(person, day, days);
   return (
     <section className="panel" data-testid="weekly-plan">
       <div className="section-title flex-wrap">
-        <h2>برنامه و تماس‌های این هفته</h2>
+        <h2>برنامه و عملکرد این هفته</h2>
         <span className="badge">
-          {label(dates[0])} تا {label(dates[6])}
+          {label(summary.dates[0])} تا {label(summary.dates[6])}
         </span>
       </div>
-      <div className="mb-5 flex flex-wrap items-baseline gap-3">
-        <strong className="text-4xl text-[#287858]" data-testid="weekly-total">
-          {fa(total)}
-        </strong>
-        <span>تماس ثبت‌شده از هدف حدود {fa(MOHAMMAD_WEEKLY_TARGET)} تماس</span>
+      <div className="mb-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl bg-[#f4f7ef] p-4">
+          <p className="caption">تماس در یکشنبه، دوشنبه و چهارشنبه</p>
+          <strong className="text-2xl" data-testid="weekly-call-total">
+            {fa(summary.plannedDayCalls)} از {fa(weeklyCallTarget(person))}
+          </strong>
+          <p className="mt-2 text-sm">
+            روز تماس تکمیل‌شده: {fa(summary.completedDays)} از{" "}
+            {fa(summary.requiredDays)}
+          </p>
+        </div>
+        <div className="rounded-xl bg-[#f4f7ef] p-4">
+          <p className="caption">لید جدید هفته</p>
+          <strong className="text-2xl" data-testid="weekly-lead-total">
+            {fa(summary.leads)} از {fa(WEEKLY_LEAD_TARGET)}
+          </strong>
+          <p className="mt-2 text-sm">روز پیدا کردن لید: پنجشنبه</p>
+        </div>
+        <div className="rounded-xl bg-[#f4f7ef] p-4">
+          <p className="caption">تمام تماس‌های واقعی هفته</p>
+          <strong className="text-2xl">{fa(summary.totalCalls)}</strong>
+          <p className="mt-2 text-sm">
+            شامل تماس‌های پیگیری؛ جایگزین هدف هر روز تماس نمی‌شود.
+          </p>
+        </div>
       </div>
-      <div className="h-2 overflow-hidden rounded bg-[#e9efe3]">
-        <div
-          className="h-full bg-[#287858]"
-          style={{
-            width: Math.min((total / MOHAMMAD_WEEKLY_TARGET) * 100, 100) + "%",
-          }}
-        />
-      </div>
-      <p role="status" className="my-4 text-sm">
-        {total < 270
-          ? `${fa(270 - total)} تماس تا عدد برنامه‌ریزی ۲۷۰ باقی مانده است.`
-          : "مجموع ثبت‌شده به عدد برنامه‌ریزی ۲۷۰ رسیده است."}{" "}
-        داده {fa(recorded)} روز وارد شده؛ خالی بودن رکورد به معنی صفر تماس نیست.
-      </p>
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        {dates.map((date) => {
-          const data = days["mohammad_" + date] || {},
-            p = dayPolicy(date, data),
-            n = validCount(data.calls);
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+        {summary.dates.map((date) => {
+          const data = days[`${person.id}_${date}`] || {},
+            p = dayPolicy(date, data, person),
+            calls = validCount(data.calls),
+            leads = validCount(data.leads);
           return (
             <button
               key={date}
@@ -83,20 +68,28 @@ export default function WeeklyPlan({ day, days, setDay }) {
                   : "border-line bg-white")
               }
             >
-              <span className="flex items-center justify-between gap-2">
+              <span className="flex flex-wrap justify-between gap-2">
                 <strong>{WEEKDAY_NAMES[weekday(date)]}</strong>
                 <span className="caption">{label(date)}</span>
               </span>
               <span className="my-2 block text-sm">{p.label}</span>
-              <span className="block text-lg font-bold">
-                {n === null ? "ثبت نشده" : fa(n) + " تماس"}
+              <span className="block font-bold">
+                {calls === null ? "تماس ثبت نشده" : fa(calls) + " تماس"}
               </span>
               {p.target !== null && (
-                <span className="caption">
-                  حداقل {fa(p.target)}
-                  {n !== null && n < p.target
-                    ? `؛ ${fa(p.target - n)} تماس باقی‌مانده`
-                    : ""}
+                <span className="caption">حداقل {fa(p.target)} تماس</span>
+              )}
+              <span className="mt-2 block text-sm">
+                {leads === null ? "لید ثبت نشده" : fa(leads) + " لید جدید"}
+              </span>
+              {p.followup && (
+                <span className="caption mt-2 block">
+                  آموزش صبح · جلسات تکی
+                </span>
+              )}
+              {p.leadDay && (
+                <span className="caption mt-2 block">
+                  لیدسازی · جلسه گزارش‌ها
                 </span>
               )}
             </button>
@@ -104,10 +97,10 @@ export default function WeeklyPlan({ day, days, setDay }) {
         })}
       </div>
       <p className="local-note mt-4">
-        برای ثبت یا اصلاح هر روز، همان روز را انتخاب کن. این جمع از رکوردهای
-        محلی همین مرورگر محاسبه می‌شود؛ تأیید رسمی با گزارش CRM است. حد مجاز
-        اختلاف از «حدود ۲۷۰» تعیین نشده، بنابراین این بخش فقط پیشرفت برنامه را
-        نشان می‌دهد.
+        برای ثبت یا اصلاح یک روز، کارت همان روز را انتخاب کن. جمع‌ها از داده‌های
+        همین فرد در همین مرورگر محاسبه می‌شوند. تماس و لید جدید جدا هستند؛
+        برنامه تماس برای هفته کامل کاری است و تعطیلی یا روز کوتاه طبق مصوبه جدا
+        گزارش می‌شود.
       </p>
     </section>
   );

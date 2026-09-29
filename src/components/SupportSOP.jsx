@@ -1,6 +1,15 @@
 import React, { useState } from "react";
 import support from "../data/support.json";
-import { validCount } from "../lib/schedule.js";
+import { validCount, policyText } from "../lib/schedule.js";
+import WeeklyPlan from "./WeeklyPlan.jsx";
+import {
+  WeeklyPolicy,
+  DayControls,
+  CallCounter,
+  LeadCounter,
+  LeadSourcesView,
+  PolicyPrint,
+} from "./TeamPolicy.jsx";
 
 const fa = (n) => Number(n).toLocaleString("fa-IR");
 const dateLabel = (day) =>
@@ -22,6 +31,7 @@ export const SUPPORT_FIELDS = [
 export const SUPPORT_NAV = [
   ["overview", "SOP من", "House"],
   ["daily", "کار روزانه", "PhoneCall"],
+  ["team-plan", "برنامه تیم", "Users"],
   ["support-orders", "سفارش تا تحویل", "Route"],
   ["support-receivables", "وصول مطالبات", "Clock3"],
   ["support-cash", "تنخواه و اسناد", "NotebookPen"],
@@ -65,6 +75,7 @@ export default function SupportSOP({
   profile,
   day,
   setDay,
+  days = {},
   dayData,
   setDayData,
   go,
@@ -97,16 +108,18 @@ export default function SupportSOP({
                 className="text-6xl font-bold text-leaf"
                 data-testid="role-target"
               >
-                ۱۰
+                ۲۴۰
               </strong>
               <span className="text-sm">
-                سرنخ جدید در روز
+                لید جدید در هفته
                 <br />
-                بدون حداقل تماس جداگانه
+                ۴۰ تماس در هر روز تماس
               </span>
             </div>
           </div>
         </section>
+        <WeeklyPolicy person={person} compact />
+        <LeadSourcesView person={person} />
         <div className="grid gap-4 sm:grid-cols-3">
           {[
             ["support-orders", "سفارش تا تحویل", "۶ مرحله اجرایی"],
@@ -126,6 +139,9 @@ export default function SupportSOP({
               <span className="badge">{fa(done)} از ۸</span>
             </div>
             <DateInput {...{ day, setDay }} />
+            <div className="my-5">
+              <DayControls {...{ person, day, dayData, setDayData }} />
+            </div>
             <div className="mt-5 space-y-3">
               {support.checks.map((text, i) => (
                 <label
@@ -153,48 +169,8 @@ export default function SupportSOP({
             </p>
           </section>
           <div className="space-y-5">
-            <section className="panel">
-              <h2 className="section-title">سرنخ‌های جدید امروز</h2>
-              <label className="label" htmlFor="daily-leads">
-                تعداد سرنخ جدید ثبت‌شده در CRM
-              </label>
-              <input
-                id="daily-leads"
-                className="field"
-                inputMode="numeric"
-                type="number"
-                min="0"
-                max="100000"
-                step="1"
-                value={dayData.leads || ""}
-                onChange={(e) => setDayData({ leads: e.target.value })}
-              />
-              <div className="mt-4 flex justify-between">
-                <span>هدف روزانه: ۱۰ سرنخ</span>
-                <strong data-testid="leads-progress">
-                  {n === null ? "ثبت نشده" : fa(n) + " از ۱۰"}
-                </strong>
-              </div>
-              <div className="my-3 h-2 overflow-hidden rounded bg-[#e9efe3]">
-                <div
-                  className="h-full bg-[#287858]"
-                  style={{ width: Math.min((n || 0) / 10, 1) * 100 + "%" }}
-                />
-              </div>
-              <p role="status" className="text-sm">
-                {n === null
-                  ? dayData.leads
-                    ? "تعداد سرنخ باید عدد صحیح نامنفی باشد."
-                    : "تعداد را از رکوردهای جدید و غیرتکراری CRM وارد کن."
-                  : n >= 10
-                    ? "هدف روزانه سرنخ جدید تکمیل شده است."
-                    : fa(10 - n) + " سرنخ تا هدف امروز باقی مانده است."}
-              </p>
-              <p className="caption mt-4">
-                سرنخ جدید با تعداد تماس متفاوت است. تماس ورودی و پیگیری مشتری
-                قبلی، به‌خودی‌خود سرنخ جدید نیستند.
-              </p>
-            </section>
+            <CallCounter {...{ person, day, dayData, setDayData }} />
+            <LeadCounter {...{ person, day, days, dayData, setDayData }} />
             <section className="panel">
               <h2 className="section-title">گزارش پایان روز</h2>
               <p>
@@ -210,6 +186,7 @@ export default function SupportSOP({
             </section>
           </div>
         </div>
+        <WeeklyPlan {...{ person, day, days, setDay }} />
         <section className="panel">
           <h2 className="section-title">کنترل‌های اصلی این نقش</h2>
           {blocks(support.controls)}
@@ -225,9 +202,10 @@ export default function SupportSOP({
           <section className="panel">
             <h2 className="section-title">ایجاد سرنخ و فروش مجدد</h2>
             <p>
-              روزانه ۱۰ سرنخ جدید با نام تولیدکننده، راه تماس، رسته کاری، مصرف
-              ماهانه و شهر ثبت کن. اطلاعات نامعلوم را حدس نزن و برای تکمیل آن
-              اقدام بعدی تعیین کن.
+              پنجشنبه، لیدها را از پاساژها و باسکول پیدا کن؛ هدف هفته ۲۴۰ لید
+              جدید است. نام تولیدکننده، راه تماس، رسته کاری، مصرف ماهانه و شهر
+              ثبت کن. اطلاعات نامعلوم را حدس نزن و برای تکمیل آن اقدام بعدی
+              تعیین کن.
             </p>
             <p className="mt-3">
               مشتریان بدون سفارش در بیش از ۳۰ روز را شناسایی کن؛ وضعیت خط تولید
@@ -235,9 +213,10 @@ export default function SupportSOP({
               تأمین پیگیری کن.
             </p>
             <p className="notice mt-4">
-              برای این نقش حداقل تماس روزانه جداگانه تعریف نشده است. تماس‌ها و
-              ورودی‌ها با زمان، نتیجه و اقدام بعدی در CRM ثبت شوند. تعهد مشتری،
-              وصول و کنترل خروج بار مقدم‌اند.
+              یکشنبه، دوشنبه و چهارشنبه هر روز ۴۰ تماس انجام بده؛ شنبه و سه‌شنبه
+              پیگیری و پنجشنبه لیدسازی و گزارش است. تماس‌ها و ورودی‌ها با زمان،
+              نتیجه و اقدام بعدی در CRM ثبت شوند. تعهد مشتری، وصول و کنترل خروج
+              بار مقدم‌اند.
             </p>
           </section>
         </div>
@@ -329,8 +308,9 @@ export default function SupportSOP({
     return (
       <>
         <Intro title="شاخص‌های فروش و پشتیبانی">
-          هدف مشخص این نقش ۱۰ سرنخ جدید در روز است؛ کنترل سفارش، وصول، تنخواه و
-          گزارش نیز جداگانه مرور می‌شوند.
+          هدف این نقش ۲۴۰ لید جدید در هفته و ۴۰ تماس در هر یک از روزهای یکشنبه،
+          دوشنبه و چهارشنبه است؛ کنترل سفارش، وصول، تنخواه و گزارش نیز جداگانه
+          مرور می‌شوند.
         </Intro>
         <div className="section-stack">
           <section className="panel">{blocks(support.metrics)}</section>
@@ -353,9 +333,10 @@ export default function SupportSOP({
         <section className="panel">
           <DateInput {...{ day, setDay }} />
           <p className="notice my-5">
-            سرنخ جدید ثبت‌شده امروز: {n === null ? "وارد نشده" : fa(n)} از هدف
-            ۱۰. پیش‌نویس در مرورگر ذخیره می‌شود. برای ثبت مرکزی، گزارش را به
-            Google Sheets ارسال کن و پیام تأیید دریافت را ببین.
+            لید جدید ثبت‌شده در تاریخ انتخاب‌شده:{" "}
+            {n === null ? "وارد نشده" : fa(n)}. هدف هفته ۲۴۰ لید است. پیش‌نویس
+            در مرورگر ذخیره می‌شود. برای ثبت مرکزی، گزارش را به Google Sheets
+            ارسال کن و پیام تأیید دریافت را ببین.
           </p>
           <form
             onSubmit={async (e) => {
@@ -435,7 +416,7 @@ export function SupportPrint({ person, profile, fields, day, dayData }) {
     <article className="print-only" dir="rtl">
       <h1>SOP فردی {person.name}</h1>
       <p className="print-meta">
-        شاه‌نخ | کارشناس فروش و پشتیبانی | نسخه ۱٫۱ | {person.code}
+        شاه‌نخ | کارشناس فروش و پشتیبانی | نسخه ۱٫۳ | {person.code}
       </p>
       <p>
         مرجع اختصاصی: {support.source}؛ قواعد مشترک ثبت و تعهد مشتری از SOP جامع
@@ -443,8 +424,9 @@ export function SupportPrint({ person, profile, fields, day, dayData }) {
       </p>
       <p>{support.mission}</p>
       <p>
-        <strong>هدف روزانه ۱۰ سرنخ جدید؛ بدون حداقل تماس جداگانه.</strong>
+        <strong>{policyText(person)}</strong>
       </p>
+      <PolicyPrint person={person} />
       <h2>اطلاعات فردی</h2>
       <table>
         <tbody>
@@ -502,8 +484,9 @@ export function SupportPrint({ person, profile, fields, day, dayData }) {
       <h2>گزارش روزانه {dateLabel(day)}</h2>
       <p>
         سرنخ جدید ثبت‌شده:{" "}
-        {validCount(dayData.leads) === null ? "ثبت نشده" : fa(dayData.leads)} از
-        هدف ۱۰.
+        {validCount(dayData.leads) === null ? "ثبت نشده" : fa(dayData.leads)}.
+        هدف هفته ۲۴۰ لید جدید است. تماس واقعی این روز:{" "}
+        {validCount(dayData.calls) === null ? "ثبت نشده" : fa(dayData.calls)}.
       </p>
       {support.reportFields.map(([key, label]) => (
         <section className="keep" key={key}>
